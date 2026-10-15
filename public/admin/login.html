@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Login – MoMo Alert</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#0a0a0f;--card:#13131a;--border:#1e1e2e;
+      --primary:#a855f7;--primary-glow:rgba(168,85,247,.35);
+      --text:#e2e8f0;--muted:#64748b;--error:#f87171;
+      --input:#0d0d14;--input-border:#2d2d3d;
+    }
+    body{
+      min-height:100vh;display:flex;align-items:center;justify-content:center;
+      background:var(--bg);font-family:'Inter',sans-serif;color:var(--text);
+      background-image:
+        radial-gradient(ellipse 60% 40% at 50% 0%,rgba(168,85,247,.12) 0%,transparent 70%);
+    }
+    .card{
+      width:100%;max-width:420px;padding:2.5rem;border-radius:20px;
+      background:var(--card);border:1px solid var(--border);
+      box-shadow:0 0 60px rgba(0,0,0,.5),0 0 0 1px rgba(168,85,247,.05);
+    }
+    .logo{text-align:center;margin-bottom:2rem;}
+    .logo-icon{font-size:3rem;line-height:1;display:block;margin-bottom:.75rem;
+      filter:drop-shadow(0 0 16px var(--primary-glow));}
+    .logo h1{font-size:1.4rem;font-weight:700;background:linear-gradient(135deg,#f0abfc,#a855f7);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+    .logo p{color:var(--muted);font-size:.85rem;margin-top:.25rem;}
+
+    label{display:block;font-size:.8rem;font-weight:600;color:var(--muted);
+      letter-spacing:.05em;text-transform:uppercase;margin-bottom:.5rem;}
+    .input-wrap{position:relative;margin-bottom:1.25rem;}
+    input[type=password]{
+      width:100%;padding:.75rem 1rem;border-radius:10px;
+      background:var(--input);border:1.5px solid var(--input-border);
+      color:var(--text);font-size:.95rem;font-family:inherit;
+      outline:none;transition:border-color .2s,box-shadow .2s;
+    }
+    input[type=password]:focus{
+      border-color:var(--primary);
+      box-shadow:0 0 0 3px var(--primary-glow);
+    }
+    .toggle-eye{
+      position:absolute;right:.875rem;top:50%;transform:translateY(-50%);
+      background:none;border:none;color:var(--muted);cursor:pointer;
+      font-size:1rem;padding:0;line-height:1;
+    }
+
+    .btn{
+      width:100%;padding:.85rem;border-radius:10px;border:none;cursor:pointer;
+      font-size:.95rem;font-weight:700;font-family:inherit;
+      background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff;
+      box-shadow:0 4px 24px rgba(168,85,247,.4);
+      transition:opacity .2s,transform .15s,box-shadow .2s;
+      position:relative;overflow:hidden;
+    }
+    .btn:hover{opacity:.92;transform:translateY(-1px);box-shadow:0 6px 32px rgba(168,85,247,.55);}
+    .btn:active{transform:translateY(0);}
+    .btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+    .btn-spinner{display:none;width:18px;height:18px;border:2px solid rgba(255,255,255,.3);
+      border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;
+      margin:0 auto;}
+    .btn.loading .btn-text{display:none;}
+    .btn.loading .btn-spinner{display:block;}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    .error-box{
+      display:none;padding:.75rem 1rem;border-radius:10px;margin-bottom:1rem;
+      background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);
+      color:var(--error);font-size:.875rem;text-align:center;
+    }
+    .error-box.show{display:block;animation:shake .4s ease;}
+    @keyframes shake{
+      0%,100%{transform:translateX(0)}
+      25%{transform:translateX(-6px)}75%{transform:translateX(6px)}
+    }
+
+    .footer{text-align:center;margin-top:1.75rem;color:var(--muted);font-size:.8rem;}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <span class="logo-icon">💜</span>
+      <h1>MoMo Alert Admin</h1>
+      <p>Đăng nhập để truy cập Dashboard</p>
+    </div>
+
+    <div id="error-box" class="error-box">
+      ❌ Mật khẩu không đúng. Thử lại.
+    </div>
+
+    <form id="login-form" novalidate>
+      <label for="password">Mật khẩu Admin</label>
+      <div class="input-wrap">
+        <input id="password" type="password" placeholder="Nhập mật khẩu…" autocomplete="current-password" autofocus/>
+        <button type="button" class="toggle-eye" id="toggle-eye" title="Hiện/ẩn mật khẩu">👁</button>
+      </div>
+
+      <button type="submit" class="btn" id="login-btn">
+        <span class="btn-text">Đăng nhập →</span>
+        <div class="btn-spinner"></div>
+      </button>
+    </form>
+
+    <p class="footer">MoMo Stream Alert v2.0 · Admin Dashboard</p>
+  </div>
+
+  <script>
+    // Kiểm tra query param lỗi từ form redirect
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('error') === 'wrong_password') {
+      document.getElementById('error-box').classList.add('show');
+    }
+
+    // Toggle password visibility
+    const pwdInput = document.getElementById('password');
+    document.getElementById('toggle-eye').addEventListener('click', () => {
+      const isText = pwdInput.type === 'text';
+      pwdInput.type = isText ? 'password' : 'text';
+    });
+
+    // Form submit via fetch (SPA style)
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn     = document.getElementById('login-btn');
+      const errBox  = document.getElementById('error-box');
+      const password = pwdInput.value;
+
+      if (!password) return;
+
+      btn.classList.add('loading');
+      btn.disabled = true;
+      errBox.classList.remove('show');
+
+      try {
+        const res = await fetch('/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          window.location.href = data.redirect || '/admin/';
+        } else {
+          errBox.classList.add('show');
+          pwdInput.value = '';
+          pwdInput.focus();
+        }
+      } catch {
+        errBox.textContent = '❌ Không thể kết nối server. Thử lại.';
+        errBox.classList.add('show');
+      } finally {
+        btn.classList.remove('loading');
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

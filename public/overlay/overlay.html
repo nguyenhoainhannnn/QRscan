@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=800, initial-scale=1.0" />
+  <title>MoMo Alert Overlay</title>
+  <link rel="stylesheet" href="overlay.css" />
+</head>
+<body>
+
+  <!-- ── Alert Box ──────────────────────────────────────────── -->
+  <div id="alert-box" class="alert-box" aria-live="polite" aria-hidden="true">
+
+    <!-- GIF / Image minh họa -->
+    <div class="alert-gif-wrapper">
+      <img id="alert-gif" class="alert-gif" src="" alt="alert animation" />
+    </div>
+
+    <!-- Nội dung chính -->
+    <div class="alert-content">
+      <div class="alert-header">
+        <span class="momo-icon">💜</span>
+        <p id="alert-donor" class="alert-donor"></p>
+      </div>
+      <div id="alert-message-wrap" class="alert-message-wrap">
+        <p id="alert-message" class="alert-message"></p>
+      </div>
+    </div>
+
+    <!-- Thanh tiến trình -->
+    <div class="alert-progress-bar">
+      <div id="alert-progress" class="alert-progress-fill"></div>
+    </div>
+  </div>
+
+  <!-- ── Connection Status Dot ──────────────────────────────── -->
+  <div id="conn-dot" class="conn-dot conn-dot--hidden" title="Mất kết nối tới Server"></div>
+
+  <!-- ── Scripts ────────────────────────────────────────────── -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="overlay.js"></script>
+</body>
+</html>

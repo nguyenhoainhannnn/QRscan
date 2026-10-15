@@ -1,0 +1,60 @@
+version: '3.9'
+
+services:
+  # ─────────────────────────────────────────────
+  # PostgreSQL 16 – persistent data volume
+  # ─────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: momo_alert_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-momo_alert}
+      POSTGRES_USER: ${POSTGRES_USER:-momo_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-strongpassword}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-momo_user} -d ${POSTGRES_DB:-momo_alert}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - momo_net
+
+  # ─────────────────────────────────────────────
+  # Backend – Node.js (Express + Socket.io + pg)
+  # ─────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: momo_alert_backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-momo_user}:${POSTGRES_PASSWORD:-strongpassword}@postgres:5432/${POSTGRES_DB:-momo_alert}
+    ports:
+      - "${PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src:ro
+      - ./public:/app/public:ro
+      - ./logs:/app/logs
+    networks:
+      - momo_net
+
+volumes:
+  postgres_data:
+    name: momo_alert_pgdata
+
+networks:
+  momo_net:
+    name: momo_alert_network
+    driver: bridge
