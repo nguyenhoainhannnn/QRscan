@@ -152,11 +152,11 @@ describe('parseMomoNotification', () => {
   // ──────────────────────────────────────────────────────────────────────────
   // Test 9: Package không phải MoMo → IGNORED
   // ──────────────────────────────────────────────────────────────────────────
-  test('TC09 – Package không phải MoMo → IGNORED', () => {
+  test('TC09 – Package không được hỗ trợ → IGNORED', () => {
     const result = parseMomoNotification({
       rawText: 'Bạn vừa nhận được 50.000đ từ ai đó.',
       rawTitle: '',
-      packageName: 'com.vnpay.wallet',
+      packageName: 'com.unknown.app',
       timestamp: Date.now(),
     });
 
@@ -198,6 +198,97 @@ describe('parseMomoNotification', () => {
     expect(result).not.toContain('BADWORD2');
     expect(result).toContain('***');
     expect(result).toContain('bình thường');
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Test 13: Thông báo VNPAY chuẩn theo mẫu người dùng
+  // ──────────────────────────────────────────────────────────────────────────
+  test('TC13 – VNPAY nhận tiền từ ngân hàng có nội dung và FT mã giao dịch', () => {
+    const rawText = `Thời gian giao dịch: 16/10/2026 20:49
+Số tiền giao dịch: + 8.000 VNĐ
+Số dư cuối: 28.000 VNĐ
+Nội dung: Nhan tien: Techcombank _ **********6018: tien nuoc
+FT26289409070214`;
+
+    const result = parseMomoNotification({
+      rawTitle: 'Ứng dụng VNPAY',
+      rawText,
+      packageName: 'vnpay.smartacccount',
+      timestamp: Date.now(),
+    });
+
+    expect(result.status).toBe('PARSED');
+    expect(result.data.amount).toBe(8000);
+    expect(result.data.momoTransId).toBe('FT26289409070214');
+    expect(result.data.senderName).toBe('Techcombank (*6018)');
+    expect(result.data.message).toBe('tien nuoc');
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Test 14: VNPAY trừ tiền (-) → IGNORED
+  // ──────────────────────────────────────────────────────────────────────────
+  test('TC14 – VNPAY trừ tiền (-) → IGNORED', () => {
+    const rawText = `Thời gian giao dịch: 16/10/2026 20:50
+Số tiền giao dịch: - 50.000 VNĐ
+Số dư cuối: 28.000 VNĐ
+Nội dung: Thanh toan hoa don`;
+
+    const result = parseMomoNotification({
+      rawTitle: 'Ứng dụng VNPAY',
+      rawText,
+      packageName: 'vnpay.smartacccount',
+      timestamp: Date.now(),
+    });
+
+    expect(result.status).toBe('IGNORED');
+    expect(result.reason).toMatch(/trừ tiền/i);
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Test 15: VNPAY chuyển tiền P2P
+  // ──────────────────────────────────────────────────────────────────────────
+  test('TC15 – VNPAY nhận tiền P2P giữa 2 ví', () => {
+    const rawText = `Thời gian giao dịch: 16/10/2026 21:00
+Số tiền giao dịch: + 50.000 VNĐ
+Số dư cuối: 78.000 VNĐ
+Nội dung: NGUYEN VAN A chuyen tien: ung ho streamer
+FT26289409099999`;
+
+    const result = parseMomoNotification({
+      rawTitle: 'Ứng dụng VNPAY',
+      rawText,
+      packageName: 'vnpay.smartacccount',
+      timestamp: Date.now(),
+    });
+
+    expect(result.status).toBe('PARSED');
+    expect(result.data.amount).toBe(50000);
+    expect(result.data.momoTransId).toBe('FT26289409099999');
+    expect(result.data.senderName).toBe('NGUYEN VAN A');
+    expect(result.data.message).toBe('ung ho streamer');
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Test 16: VNPAY nhận tiền từ Vietcombank (VCB Napas chuyển khoản)
+  // ──────────────────────────────────────────────────────────────────────────
+  test('TC16 – VNPAY nhận tiền từ Vietcombank trích xuất đúng tên người thật và lời nhắn', () => {
+    const rawText = `Thời gian giao dịch 16/10/2026 21:18
+Số tiền giao dịch +10.000 VND
+Số dư cuối 38.000 VND
+Nội dung Nhan tien: Vietcombank - **********4711: MBVCB.16572433113.6289BFTVGLCJZP18.tien nuoc.CT tu 0441000784711 NGUYEN HOAI NHAN toi 0783694473 NGUYEN HOAI NHAN tai VNPAY`;
+
+    const result = parseMomoNotification({
+      rawTitle: 'Nhận tiền ngân hàng',
+      rawText,
+      packageName: 'vnpay.smartacccount',
+      timestamp: Date.now(),
+    });
+
+    expect(result.status).toBe('PARSED');
+    expect(result.data.amount).toBe(10000);
+    expect(result.data.momoTransId).toBe('VCB_16572433113');
+    expect(result.data.senderName).toBe('NGUYEN HOAI NHAN (VCB)');
+    expect(result.data.message).toBe('tien nuoc');
   });
 
   // ──────────────────────────────────────────────────────────────────────────

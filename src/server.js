@@ -71,13 +71,22 @@ const io = new Server(server, {
 adminSetIo(io);
 
 // Room authentication cho OBS overlay
-io.use((socket, next) => {
+io.use(async (socket, next) => {
   const token = socket.handshake.auth?.token || socket.handshake.query?.token;
-  if (token === process.env.OBS_OVERLAY_TOKEN) {
-    socket.join('obs_overlay_room');
-    logger.info('OBS Overlay kết nối vào obs_overlay_room', { socketId: socket.id });
-  } else {
-    logger.debug('Socket kết nối không có overlay token (có thể là admin)', { socketId: socket.id });
+  try {
+    const settings = await db.getSettings();
+    const validToken = settings?.obs_overlay_token || process.env.OBS_OVERLAY_TOKEN;
+    if (token && token === validToken) {
+      socket.join('obs_overlay_room');
+      logger.info('OBS Overlay kết nối vào obs_overlay_room', { socketId: socket.id });
+    } else {
+      logger.debug('Socket kết nối không có overlay token (có thể là admin)', { socketId: socket.id });
+    }
+  } catch (err) {
+    if (token && token === process.env.OBS_OVERLAY_TOKEN) {
+      socket.join('obs_overlay_room');
+      logger.info('OBS Overlay kết nối vào obs_overlay_room (env fallback)', { socketId: socket.id });
+    }
   }
   next(); // cho phép kết nối nhưng chỉ overlay mới vào room obs_overlay_room
 });
@@ -172,7 +181,7 @@ app.use(morgan('combined', {
 // Rate limiting
 const webhookLimiter = rateLimit({
   windowMs: 60 * 1000,   // 1 phút
-  max: 60,               // tối đa 60 request/phút từ 1 IP
+  max: 30,               // tối đa 30 request/phút từ 1 IP (Phase 5)
   message: { ok: false, error: 'RATE_LIMIT', message: 'Quá nhiều request. Thử lại sau.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -235,9 +244,19 @@ app.get('/health', async (req, res) => {
 // GET /overlay – OBS Browser Source Overlay (Giai đoạn 2)
 // Kiểm tra ?token= khớp với OBS_OVERLAY_TOKEN. Nếu sai → 403.
 // ─────────────────────────────────────────────────────────────────────────────
-app.get('/overlay', (req, res) => {
+app.get(['/overlay', '/overlay/'], async (req, res) => {
   const token = req.query.token;
-  if (!token || token !== process.env.OBS_OVERLAY_TOKEN) {
+  let validToken = process.env.OBS_OVERLAY_TOKEN;
+  try {
+    const settings = await db.getSettings();
+    if (settings?.obs_overlay_token) {
+      validToken = settings.obs_overlay_token;
+    }
+  } catch (err) {
+    logger.warn('Không thể đọc settings từ DB, dùng fallback env token:', err.message);
+  }
+
+  if (!token || token !== validToken) {
     logger.warn('Overlay truy cập bị từ chối – sai token', { ip: req.ip });
     return res.status(403).send(
       '<!DOCTYPE html><html><body style="background:#111;color:#f87171;font-family:monospace;padding:2rem">'
@@ -248,9 +267,35 @@ app.get('/overlay', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'overlay', 'overlay.html'));
 });
 
-// Serve overlay static files (CSS, JS) – chỉ sau khi token đã được xác thực ở route /overlay
-// overlay.js và overlay.css được load qua <link>/<script> từ cùng origin nên không cần recheck token
+// Serve overlay static files (CSS, JS)
 app.use('/overlay', express.static(path.join(__dirname, '..', 'public', 'overlay')));
+
+// Fallback trực tiếp nếu OBS Browser Source gọi /overlay.css hoặc /overlay.js
+app.get('/overlay.css', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'overlay', 'overlay.css'));
+});
+app.get('/overlay.js', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'overlay', 'overlay.js'));
+});
+app.get('/alert.gif', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'overlay', 'alert.gif'));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/v1/webhook/momo-notify
+// Endpoint kiểm tra nhanh trạng thái webhook từ trình duyệt điện thoại
+// ─────────────────────────────────────────────────────────────────────────────
+app.get('/api/v1/webhook/momo-notify', (req, res) => {
+  const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.ip;
+  res.json({
+    ok: true,
+    service: 'MoMo Stream Alert Webhook',
+    status: 'ALIVE',
+    message: 'Webhook đang hoạt động bình thường! Hãy gửi HTTP POST kèm chữ ký HMAC-SHA256 để nạp thông báo.',
+    clientIp,
+    timestamp: new Date().toISOString()
+  });
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/v1/webhook/momo-notify
@@ -839,8 +884,30 @@ function formatAmount(amount) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Start server
+// Retention Cleanup: Tự động dọn dẹp dữ liệu cũ hơn 90 ngày
 // ─────────────────────────────────────────────────────────────────────────────
+const RETENTION_DAYS = parseInt(process.env.DATA_RETENTION_DAYS || '90', 10);
+
+async function runDataRetentionCleanup() {
+  try {
+    const res = await db.query('SELECT * FROM fn_cleanup_old_records($1)', [RETENTION_DAYS]);
+    const row = res.rows[0];
+    const delDonations = Number(row?.deleted_donations || 0);
+    const delRawLogs = Number(row?.deleted_raw_logs || 0);
+
+    if (delDonations > 0 || delRawLogs > 0) {
+      logger.info(`Đã dọn dẹp dữ liệu cũ hơn ${RETENTION_DAYS} ngày`, {
+        deletedDonations: delDonations,
+        deletedRawLogs: delRawLogs,
+      });
+    } else {
+      logger.debug(`Retention policy: Không có dữ liệu cũ hơn ${RETENTION_DAYS} ngày.`);
+    }
+  } catch (err) {
+    logger.error('Lỗi khi thực thi dọn dẹp dữ liệu định kỳ:', err.message);
+  }
+}
+
 async function startServer() {
   // Kiểm tra biến môi trường bắt buộc
   const required = ['DATABASE_URL', 'WEBHOOK_SECRET', 'ADMIN_PASSWORD', 'OBS_OVERLAY_TOKEN'];
@@ -873,6 +940,10 @@ async function startServer() {
     logger.info(`🔑 Webhook: POST /api/v1/webhook/momo-notify`);
     logger.info(`🔊 TTS Proxy: GET /api/v1/tts?text=...`);
     logger.info(`ENV: ${process.env.NODE_ENV}`);
+
+    // Dọn dẹp dữ liệu cũ hơn 90 ngày khi khởi động và lặp lại mỗi 24 giờ
+    runDataRetentionCleanup();
+    setInterval(runDataRetentionCleanup, 24 * 60 * 60 * 1000);
   });
 }
 

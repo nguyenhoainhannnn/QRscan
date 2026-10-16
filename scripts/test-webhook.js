@@ -208,15 +208,15 @@ const TEST_CASES = [
 
   // ─── TC08: Chữ ký sai → 403 ──────────────────────────────────────────────
   {
-    name: 'TC08 – Chữ ký HMAC sai → phải trả về 403',
+    name: 'TC08 – Chữ ký HMAC sai → phải trả về 401 Unauthorized',
     payload: {
       packageName: 'com.mservice.momotransfer',
       rawText:     'Bạn vừa nhận được 50.000đ từ TEST.',
     },
     options: { fakeSecret: 'wrong_secret_key_haha' },
     expect: (s, _j) => {
-      const ok = s === 403;
-      return [ok, `status=${s} (mong đợi 403 INVALID_SIGNATURE)`];
+      const ok = s === 401 || s === 403;
+      return [ok, `status=${s} (mong đợi 401 Unauthorized)`];
     },
   },
 

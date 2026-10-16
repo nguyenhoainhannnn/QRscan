@@ -23,10 +23,11 @@
  *   PUT  /api/v1/admin/settings
  */
 
-const express  = require('express');
-const path     = require('path');
-const crypto   = require('crypto');
-const router   = express.Router();
+const express   = require('express');
+const path      = require('path');
+const crypto    = require('crypto');
+const rateLimit = require('express-rate-limit');
+const router    = express.Router();
 
 const db     = require('../services/database');
 const logger = require('../services/logger');
@@ -37,6 +38,23 @@ const {
   clearSessionCookie,
   checkPassword,
 } = require('../middleware/adminAuth');
+
+// Rate limiter cho trang login: tối đa 5 lần thử / 15 phút (Phase 5)
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 phút
+  max: 5,                   // tối đa 5 lần thử / 15 phút
+  skipSuccessfulRequests: true, // Thành công không tính vào giới hạn thử
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    logger.warn('Rate limit admin login bị vượt quá (tối đa 5 lần thử / 15 phút)', { ip: req.ip });
+    const message = 'Bạn đã thử đăng nhập sai quá 5 lần. Vui lòng thử lại sau 15 phút.';
+    if (req.headers['content-type']?.includes('application/json') || req.xhr) {
+      return res.status(429).json({ ok: false, error: 'RATE_LIMIT_LOGIN', message });
+    }
+    return res.status(429).send(message);
+  },
+});
 
 // io được inject khi router được mount (xem cuối file)
 let _io = null;
@@ -72,7 +90,7 @@ router.get('/admin/login', (req, res) => {
 });
 
 /** POST /admin/login – Xử lý đăng nhập */
-router.post('/admin/login', express.urlencoded({ extended: false }), express.json(), (req, res) => {
+router.post('/admin/login', loginLimiter, express.urlencoded({ extended: false }), express.json(), (req, res) => {
   const password = req.body?.password || '';
 
   if (!checkPassword(password)) {
@@ -583,6 +601,27 @@ router.get('/api/v1/admin/obs-url', requireSession, async (req, res) => {
     const url      = `${proto}://${host}/overlay?token=${encodeURIComponent(token)}`;
     res.json({ ok: true, url, token });
   } catch (err) {
+    res.status(500).json({ ok: false, error: 'DB_ERROR', message: err.message });
+  }
+});
+
+// ── POST /api/v1/admin/cleanup ────────────────────────────────────────────────
+// Kích hoạt dọn dẹp dữ liệu cũ (mặc định 90 ngày)
+router.post('/api/v1/admin/cleanup', requireSession, async (req, res) => {
+  try {
+    const days = parseInt(req.body?.days || '90', 10);
+    const result = await db.query('SELECT * FROM fn_cleanup_old_records($1)', [days]);
+    const row = result.rows[0];
+    logger.info('Admin kích hoạt dọn dẹp dữ liệu:', { days, row });
+    res.json({
+      ok: true,
+      retentionDays: days,
+      deletedDonations: Number(row?.deleted_donations || 0),
+      deletedRawLogs: Number(row?.deleted_raw_logs || 0),
+      message: `Đã dọn dẹp dữ liệu cũ hơn ${days} ngày.`,
+    });
+  } catch (err) {
+    logger.error('Cleanup error:', err);
     res.status(500).json({ ok: false, error: 'DB_ERROR', message: err.message });
   }
 });

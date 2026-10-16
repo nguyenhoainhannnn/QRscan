@@ -1,0 +1,31 @@
+<resources>
+    <string name="app_name">MoMo &amp; VNPAY Alert</string>
+    <string name="service_name">Payment Notification Listener Service</string>
+
+    <string name="title_system_status">TRẠNG THÁI HỆ THỐNG</string>
+    <string name="title_lan_config">CẤU HÌNH MẠNG LAN DOCKER</string>
+    <string name="title_history">LỊCH SỬ THÔNG BÁO (30 GẦN NHẤT)</string>
+
+    <string name="btn_permission_notif">Cấp quyền Notification Listener</string>
+    <string name="btn_permission_battery">Tắt tối ưu hóa pin (Chạy ngầm)</string>
+    <string name="btn_save_config">Lưu cấu hình</string>
+    <string name="btn_send_test">Gửi Test VNPAY (Giữ: Test MoMo)</string>
+
+    <string name="status_permission_granted">Đã cấp quyền</string>
+    <string name="status_permission_denied">Chưa cấp quyền</string>
+    <string name="status_battery_ignored">Đã tắt tối ưu (Tốt)</string>
+    <string name="status_battery_optimizing">Đang bị hạn chế pin</string>
+
+    <string name="hint_server_url">http://192.168.1.50:3000/api/v1/webhook/momo-notify</string>
+    <string name="hint_secret_key">WEBHOOK_SECRET (từ file .env)</string>
+
+    <string name="label_server_url">Server Webhook URL (IP máy Docker):</string>
+    <string name="label_secret_key">HMAC Secret Key:</string>
+
+    <string name="empty_history">Chưa có thông báo nào được nhận.\nHãy đảm bảo app VNPAY / MoMo có thông báo hoặc bấm [Gửi Test VNPAY].</string>
+    <string name="toast_config_saved">Đã lưu cấu hình thành công!</string>
+    <string name="toast_test_queued">Đã tạo thông báo test và xếp vào hàng đợi gửi!</string>
+
+    <string name="fgs_title">MoMo &amp; VNPAY Alert đang lắng nghe</string>
+    <string name="fgs_desc">Dịch vụ lắng nghe biến động số dư MoMo &amp; VNPAY đang chạy ngầm</string>
+</resources>

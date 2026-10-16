@@ -98,7 +98,7 @@ function verifyHmacSignature(req, res, next) {
         ip: req.ip,
         received: signature.substring(0, 10) + '...',
       });
-      return res.status(403).json({
+      return res.status(401).json({
         ok: false,
         error: 'INVALID_SIGNATURE',
         message: 'Chữ ký HMAC không hợp lệ',
@@ -107,7 +107,7 @@ function verifyHmacSignature(req, res, next) {
   } catch (err) {
     // Buffer.from có thể throw nếu signature không phải hex hợp lệ
     logger.warn('Webhook bị từ chối: signature có định dạng lỗi', { ip: req.ip });
-    return res.status(403).json({
+    return res.status(401).json({
       ok: false,
       error: 'MALFORMED_SIGNATURE',
       message: 'Chữ ký có định dạng không hợp lệ (cần hex string)',

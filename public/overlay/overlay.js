@@ -21,8 +21,9 @@
 // Cấu hình
 // ─────────────────────────────────────────────────────────────
 const CONFIG = {
-  /** URL ảnh GIF mặc định (thay bằng URL GIF bạn muốn) */
-  defaultGifUrl: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExb3Bxd3BldHd3NHV0eXNwa3hkNThsYnJ3YXZtMW9tb2VkYzFqN2ZjeCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/WoWm8YzFQJg28/giphy.gif',
+  /** URL ảnh GIF mặc định – dùng file nội bộ /overlay/alert.gif cực nhanh, fallback Giphy online */
+  defaultGifUrl: '/overlay/alert.gif',
+  fallbackGifUrl: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExZmV4cHU4eHY5ZnVobmEzcnBwaHYxdHRhMnRuaGI2eDM4MjExdHlxcCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/WykUqckDqi95YIqtFZ/giphy.gif',
 
   /** Thời gian hiển thị tối thiểu nếu server không gửi alertDurationMs */
   fallbackDurationMs: 8000,
@@ -40,28 +41,34 @@ const CONFIG = {
   bounceInDurationMs: 600,
 };
 
+// Preload GIF ngay khi mở trang để luôn sẵn sàng trong RAM
+try {
+  const _preload = new Image();
+  _preload.src = CONFIG.defaultGifUrl;
+} catch (_) {}
+
 // ─────────────────────────────────────────────────────────────
 // DOM references
 // ─────────────────────────────────────────────────────────────
-const alertBox     = document.getElementById('alert-box');
-const alertGif     = document.getElementById('alert-gif');
-const alertDonor   = document.getElementById('alert-donor');
-const alertMsg     = document.getElementById('alert-message');
+const alertBox = document.getElementById('alert-box');
+const alertGif = document.getElementById('alert-gif');
+const alertDonor = document.getElementById('alert-donor');
+const alertMsg = document.getElementById('alert-message');
 const alertMsgWrap = document.getElementById('alert-message-wrap');
 const alertProgress = document.getElementById('alert-progress');
-const connDot      = document.getElementById('conn-dot');
+const connDot = document.getElementById('conn-dot');
 
 // ─────────────────────────────────────────────────────────────
 // Hàng đợi FIFO
 // ─────────────────────────────────────────────────────────────
 /** @type {Array<Object>} */
 const alertQueue = [];
-let isPlaying    = false;
+let isPlaying = false;
 
 // ─────────────────────────────────────────────────────────────
 // Lấy token từ URL ?token=...
 // ─────────────────────────────────────────────────────────────
-const urlParams    = new URLSearchParams(window.location.search);
+const urlParams = new URLSearchParams(window.location.search);
 const OVERLAY_TOKEN = urlParams.get('token') || '';
 
 // ─────────────────────────────────────────────────────────────
@@ -200,17 +207,34 @@ function showAlert(donation, durationMs) {
   // GIF
   const gifUrl = donation.gifUrl || CONFIG.defaultGifUrl;
   if (gifUrl) {
-    alertGif.src = gifUrl;
-    alertGif.onload = () => alertGif.classList.add('loaded');
-    alertGif.onerror = () => alertGif.classList.remove('loaded');
+    alertGif.onload = () => {
+      alertGif.classList.remove('is-error');
+      alertGif.classList.add('loaded');
+    };
+    alertGif.onerror = () => {
+      console.warn('[Overlay] Lỗi tải ảnh GIF:', gifUrl);
+      if (CONFIG.fallbackGifUrl && alertGif.src !== CONFIG.fallbackGifUrl) {
+        alertGif.src = CONFIG.fallbackGifUrl;
+      } else {
+        alertGif.classList.add('is-error');
+      }
+    };
+
+    if (alertGif.getAttribute('src') !== gifUrl) {
+      alertGif.src = gifUrl;
+    }
+    if (alertGif.complete && alertGif.naturalWidth > 0) {
+      alertGif.classList.remove('is-error');
+      alertGif.classList.add('loaded');
+    }
   } else {
-    alertGif.classList.remove('loaded');
+    alertGif.classList.add('is-error');
     alertGif.src = '';
   }
 
   // ── Progress bar ──────────────────────────────────────────
   alertProgress.style.transition = 'none';
-  alertProgress.style.transform  = 'scaleX(1)';
+  alertProgress.style.transform = 'scaleX(1)';
 
   // Bật visibility trước khi animate
   alertBox.classList.remove('is-hiding');
@@ -220,7 +244,7 @@ function showAlert(donation, durationMs) {
   // Kích hoạt progress bar sau bounce-in
   setTimeout(() => {
     alertProgress.style.transition = `transform ${durationMs}ms linear`;
-    alertProgress.style.transform  = 'scaleX(0)';
+    alertProgress.style.transform = 'scaleX(0)';
   }, CONFIG.bounceInDurationMs);
 }
 
@@ -235,7 +259,6 @@ function hideAlert() {
 
     setTimeout(() => {
       alertBox.classList.remove('is-hiding');
-      alertGif.classList.remove('loaded');
       resolve();
     }, CONFIG.fadeOutDurationMs + 50);
   });
@@ -293,15 +316,15 @@ function getAudioContext() {
 function playChime() {
   return new Promise((resolve) => {
     try {
-      const ctx     = getAudioContext();
-      const now     = ctx.currentTime;
+      const ctx = getAudioContext();
+      const now = ctx.currentTime;
 
       // ── Nốt "Ting" (cao, ngắn) ───────────────────────────
-      playTone(ctx, 1318.5, now,       0.06, 0.6, 'sine');   // E6
+      playTone(ctx, 1318.5, now, 0.06, 0.6, 'sine');   // E6
       playTone(ctx, 1760.0, now + 0.01, 0.04, 0.5, 'sine');  // A6 (overtone)
 
       // ── Nốt "Dong" (trầm hơn, dài hơn) ──────────────────
-      playTone(ctx, 880.0,  now + 0.25, 0.08, 0.9, 'sine');  // A5
+      playTone(ctx, 880.0, now + 0.25, 0.08, 0.9, 'sine');  // A5
       playTone(ctx, 659.25, now + 0.27, 0.05, 0.8, 'sine');  // E5 (overtone)
 
       // Resolve sau khi âm thanh kết thúc (~1.3s)
@@ -321,7 +344,7 @@ function playChime() {
  * @param {OscillatorType} type
  */
 function playTone(ctx, freq, startAt, gain, decay, type = 'sine') {
-  const osc  = ctx.createOscillator();
+  const osc = ctx.createOscillator();
   const gainNode = ctx.createGain();
 
   osc.connect(gainNode);
@@ -348,10 +371,10 @@ function playTts(text) {
     if (!text || text.trim().length === 0) { resolve(); return; }
 
     const ttsUrl = `/api/v1/tts?text=${encodeURIComponent(text.trim())}&lang=vi`;
-    const audio  = new Audio(ttsUrl);
+    const audio = new Audio(ttsUrl);
 
-    audio.onended  = () => resolve();
-    audio.onerror  = (e) => reject(new Error('TTS audio error: ' + e.type));
+    audio.onended = () => resolve();
+    audio.onerror = (e) => reject(new Error('TTS audio error: ' + e.type));
     audio.oncanplaythrough = () => {
       audio.play().catch(reject);
     };

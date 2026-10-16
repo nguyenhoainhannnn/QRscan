@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=800, initial-scale=1.0" />
   <title>MoMo Alert Overlay</title>
-  <link rel="stylesheet" href="overlay.css" />
+  <base href="/overlay/" />
+  <link rel="stylesheet" href="/overlay/overlay.css?v=2" />
 </head>
 <body>
 
@@ -13,7 +14,7 @@
 
     <!-- GIF / Image minh họa -->
     <div class="alert-gif-wrapper">
-      <img id="alert-gif" class="alert-gif" src="" alt="alert animation" />
+      <img id="alert-gif" class="alert-gif loaded" src="/overlay/alert.gif" alt="alert animation" />
     </div>
 
     <!-- Nội dung chính -->
@@ -38,6 +39,6 @@
 
   <!-- ── Scripts ────────────────────────────────────────────── -->
   <script src="/socket.io/socket.io.js"></script>
-  <script src="overlay.js"></script>
+  <script src="/overlay/overlay.js?v=2"></script>
 </body>
 </html>

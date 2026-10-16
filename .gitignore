@@ -8,3 +8,13 @@ dist/
 build/
 coverage/
 .nyc_output/
+
+# Android build & cache
+.gradle/
+**/build/
+android-app/.gradle/
+android-app/**/build/
+android-app/local.properties
+android-app/.idea/caches/
+android-app/.idea/deploymentTargetSelector.xml
+android-app/.idea/deviceStreaming.xml

@@ -92,12 +92,13 @@ html, body {
   width: auto;
   object-fit: contain;
   filter: drop-shadow(0 4px 16px rgba(168, 85, 247, 0.5));
-  /* Ẩn nếu src rỗng hoặc lỗi */
-  display: none;
+  display: block;
 }
 
-.alert-gif.loaded {
-  display: block;
+.alert-gif.is-error,
+.alert-gif[src=""],
+.alert-gif:not([src]) {
+  display: none !important;
 }
 
 /* ─────────────────────────────────────────────────────────────

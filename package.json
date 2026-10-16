@@ -11,7 +11,8 @@
     "test:webhook": "node scripts/test-webhook.js",
     "test:webhook:v": "node scripts/test-webhook.js --verbose",
     "test:fifo": "node scripts/test-webhook.js --fifo",
-    "test:overlay": "node scripts/test-webhook.js --host http://localhost:3000"
+    "test:overlay": "node scripts/test-webhook.js --host http://localhost:3000",
+    "test:acceptance": "node scripts/run-acceptance-tests.js"
   },
   "keywords": [
     "momo",

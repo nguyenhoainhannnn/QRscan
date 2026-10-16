@@ -113,6 +113,29 @@ FROM donations;
 
 COMMENT ON VIEW v_donation_summary IS 'Tổng hợp thống kê donation – dùng cho dashboard.';
 
+-- ============================================================
+-- Function: Dọn dẹp dữ liệu cũ (Retention cleanup tối đa 90 ngày)
+-- ============================================================
+CREATE OR REPLACE FUNCTION fn_cleanup_old_records(retention_days INT DEFAULT 90)
+RETURNS TABLE(deleted_donations BIGINT, deleted_raw_logs BIGINT) LANGUAGE plpgsql AS $$
+DECLARE
+    v_donations BIGINT;
+    v_raw_logs BIGINT;
+BEGIN
+    DELETE FROM donations 
+    WHERE created_at < NOW() - (retention_days || ' days')::INTERVAL;
+    GET DIAGNOSTICS v_donations = ROW_COUNT;
+
+    DELETE FROM raw_notification_logs 
+    WHERE created_at < NOW() - (retention_days || ' days')::INTERVAL;
+    GET DIAGNOSTICS v_raw_logs = ROW_COUNT;
+
+    RETURN QUERY SELECT v_donations, v_raw_logs;
+END;
+$$;
+
+COMMENT ON FUNCTION fn_cleanup_old_records IS 'Xóa log thông báo và donate cũ hơn số ngày chỉ định (mặc định 90 ngày)';
+
 -- Hoàn tất
 DO $$ BEGIN
     RAISE NOTICE 'MoMo Alert DB schema initialized successfully at %', NOW();
